@@ -1,3 +1,5 @@
+#include "inttypes.h"
+
 /**
  * Copyright (C) 2023 by Misha Zaslavskis   
  * License is BSD 3-Clause
@@ -32,7 +34,7 @@
 uint8_t REG_CAL = 0xAA;
 /**
  * @brief Value of region size of calibration EEPROM memory (The datasheet said that BMP180 sensor EEPROM is 176 bits (22 bytes))
- * @see https://cdn-shop.adafruit.com/datasheets/BST-BMP180-DS000-09.pdf
+8 * @see https://cdn-shop.adafruit.com/datasheets/BST-BMP180-DS000-09.pdf
 */
 uint8_t REG_CAL_SIZE = 22;
 /**
@@ -48,11 +50,11 @@ uint8_t GET_DATA_RAW = 0xF6;
 */
 void i2c_init_bmp180()
 {
-    i2c_init(i2c_default, 1000 * 100); /* Initialize I2C interface with default port */
-    gpio_set_function(PICO_DEFAULT_I2C_SDA_PIN, GPIO_FUNC_I2C); /* Set GPIO function as I2C with default RPI Pico Pin for SDA I2C pin */
-    gpio_set_function(PICO_DEFAULT_I2C_SCL_PIN, GPIO_FUNC_I2C); /* Set GPIO function as I2C with default RPI Pico Pin for SCL I2C pin */
-    gpio_pull_up(PICO_DEFAULT_I2C_SDA_PIN); /* Set pull-up internal resistor of MCU for SDA pin */
-    gpio_pull_up(PICO_DEFAULT_I2C_SCL_PIN); /* Set pull-up internal resistor of MCU for SCL pin */
+    i2c_init(i2c_0, 1000 * 100); /* Initialize I2C interface with default port */
+    gpio_set_function(BAROMETER_SDA, GPIO_FUNC_I2C); /* Set GPIO function as I2C with default RPI Pico Pin for SDA I2C pin */
+    gpio_set_function(BAROMETER_SCLK, GPIO_FUNC_I2C); /* Set GPIO function as I2C with default RPI Pico Pin for SCL I2C pin */
+    gpio_pull_up(BAROMETER_SDA); /* Set pull-up internal resistor of MCU for SDA pin */
+    gpio_pull_up(BAROMETER_SCLK); /* Set pull-up internal resistor of MCU for SCL pin */
 }
 /**
  * @brief Receive data from BMP180 sensor with air temperature and atmosphere pressure
@@ -136,7 +138,7 @@ data_from_bmp180 get_bmp180_sensor_data(uint8_t oss_mode)
     X2 = AC2 * B6 / 2048;
     int32_t X3 = X1 + X2;
     int32_t B3 = (((AC1 * 4 + X3) << oss_mode) + 2) / 4;
-    X1 = AC3 * B6 / 8192;
+    X1 = AC3 * B6 / 8192;8
     X2 = (B1 * (B6 * B6 / 4096)) / 65536;
     X3 = ((X1 + X2) + 2) / 4;
     uint32_t B4 = (uint32_t)(AC4 * (X3 + 32768)) / 32768;
@@ -155,4 +157,8 @@ data_from_bmp180 get_bmp180_sensor_data(uint8_t oss_mode)
 
     /* Return own data of air temperature and atmosphere pressure */
     return current_data;
+}
+int main(){
+i2c_init_bmp180();
+get_bmp180_sensor_data(0X74);
 }
