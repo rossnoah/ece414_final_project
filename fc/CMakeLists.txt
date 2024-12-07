@@ -40,10 +40,15 @@ pico_sdk_init()
 add_executable(flightcontroller
     flightcontroller.cpp
     crsf.cpp
+    timer.cpp
+    dshot_encoder.cpp
+    pico_pio_loader.cpp
 )
 
+pico_generate_pio_header(flightcontroller ${CMAKE_CURRENT_LIST_DIR}/dshot_encoder.pio)
+
 # pull in common dependencies and additional uart hardware support
-target_link_libraries(flightcontroller pico_stdlib hardware_uart pico_bootsel_via_double_reset)
+target_link_libraries(flightcontroller pico_stdlib hardware_uart pico_bootsel_via_double_reset hardware_pwm hardware_pio hardware_sync)
 
 # create map/bin/hex file etc.
 pico_add_extra_outputs(flightcontroller)
