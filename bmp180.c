@@ -1,4 +1,6 @@
-#include "inttypes.h"
+
+#include "flight_controller_uart.h"
+#include  <stdio.h>
 
 /**
  * Copyright (C) 2023 by Misha Zaslavskis   
@@ -24,24 +26,8 @@
  * @see https://www.raspberrypi.com/documentation/pico-sdk/hardware.html#ga5149e9af84926fa19db6677691ab2900
  */
 
-#include "bmp180.h" /* Including bmp180.h for use own data type when retrieving from bmp180 sensor */
-/**
- * @brief I2C request address value of calibaration for BMP180
- * A initial address of calibration request values (AC1, AC3, B1, MC, etc ... )
- * You can look a datasheet 
- * @see https://cdn-shop.adafruit.com/datasheets/BST-BMP180-DS000-09.pdf
-*/
-uint8_t REG_CAL = 0xAA;
-/**
- * @brief Value of region size of calibration EEPROM memory (The datasheet said that BMP180 sensor EEPROM is 176 bits (22 bytes))
-8 * @see https://cdn-shop.adafruit.com/datasheets/BST-BMP180-DS000-09.pdf
-*/
-uint8_t REG_CAL_SIZE = 22;
-/**
- * @brief I2C request address value of receiving raw data in first bit (0x2E for temperature)
- * @see https://cdn-shop.adafruit.com/datasheets/BST-BMP180-DS000-09.pdf
-*/
-uint8_t GET_DATA_RAW = 0xF6;
+#include "barometer.h" /* Including barometer.h for use own data type when retrieving from bmp180 sensor */
+
 
 /**
  * @brief I2C inferface initialization function for BMP180 sensor (default I2C port - i2c0)
@@ -50,7 +36,7 @@ uint8_t GET_DATA_RAW = 0xF6;
 */
 void i2c_init_bmp180()
 {
-    i2c_init(i2c_0, 1000 * 100); /* Initialize I2C interface with default port */
+    i2c_init(i2c0, 1000 * 100); /* Initialize I2C interface with default port */
     gpio_set_function(BAROMETER_SDA, GPIO_FUNC_I2C); /* Set GPIO function as I2C with default RPI Pico Pin for SDA I2C pin */
     gpio_set_function(BAROMETER_SCLK, GPIO_FUNC_I2C); /* Set GPIO function as I2C with default RPI Pico Pin for SCL I2C pin */
     gpio_pull_up(BAROMETER_SDA); /* Set pull-up internal resistor of MCU for SDA pin */
@@ -61,27 +47,31 @@ void i2c_init_bmp180()
  * @param oss_mode A oversampling mode of BMP180 that it is help how much accuracy of measure pressure
  * @return @c data_from_bmp180 A own data struct of data_from_bmp180. Current air temperature and atmosphere pressure 
 */
+// Function to read 16-bit values from the BMP180 sensor
+int16_t read16(uint8_t reg) {
+    uint8_t buffer[2];
+    i2c_write_blocking(i2c0, ADDRESS_BMP180, &reg, 1, true);  // Send register address
+    i2c_read_blocking(i2c0, ADDRESS_BMP180, buffer, 2, false); // Read 2 bytes
+
+    return (int16_t)((buffer[0] << 8) | buffer[1]); // Combine bytes
+}
+void read_calibration_data() {
+    // Read calibration data from BMP180's registers
+    AC1 = read16(0xAA);
+    AC2 = read16(0xAC);
+    AC3 = read16(0xAE);
+    AC4 = read16(0xB0);
+    AC5 = read16(0xB2);
+    AC6 = read16(0xB4);
+    B1 = read16(0xB6);
+    B2 = read16(0xB8);
+    MB = read16(0xBA);
+    MC = read16(0xBC);
+    MD = read16(0xBE);
+}
 data_from_bmp180 get_bmp180_sensor_data(uint8_t oss_mode)
 {
-    uint8_t REG_dt[22] = {0}; /* Array of EEPROM data of BMP180 for calibration values */
-
-    i2c_write_blocking(i2c0, ADDRESS_BMP180, &REG_CAL, 1, false); /* Send request for data of calibration sensor */
-    i2c_read_blocking(i2c0, ADDRESS_BMP180, REG_dt, REG_CAL_SIZE, false); /* Receiving calibration of this sensor */
-
-    /* Assign 16 bit values from recieved array of data calibration */
-    int16_t AC1 = ((REG_dt[0] << 8) | REG_dt[1]);
-    int16_t AC2 = ((REG_dt[2] << 8) | REG_dt[3]);
-    int16_t AC3 = ((REG_dt[4] << 8) | REG_dt[5]);
-    uint16_t AC4 = ((REG_dt[6] << 8) | REG_dt[7]);
-    uint16_t AC5 = ((REG_dt[8] << 8) | REG_dt[9]);
-    uint16_t AC6 = ((REG_dt[10] << 8) | REG_dt[11]);
-
-    int16_t B1 = ((REG_dt[12] << 8) | REG_dt[13]);
-    int16_t B2 = ((REG_dt[14] << 8) | REG_dt[15]);
-    int16_t MB = ((REG_dt[16] << 8) | REG_dt[17]);
-    int16_t MC = ((REG_dt[18] << 8) | REG_dt[19]);
-    int16_t MD = ((REG_dt[20] << 8) | REG_dt[21]);
-
+read_calibration_data(); 
     uint8_t measure_setting_temperature[] = {0xF4, 0x2E}; /* Set request type of data to able measure uncompersanted temperature */
     uint8_t buf_raw_temperature[2] = {0}; /* Array of uncompersanted temperature data for construction 16 bit value */
 
@@ -94,7 +84,7 @@ data_from_bmp180 get_bmp180_sensor_data(uint8_t oss_mode)
     long UT = ((buf_raw_temperature[0] << 8) + buf_raw_temperature[1]); /* Construct long value of uncompersanted temperature, according datasheet in page 15 */
 
     /* Calculation temperature, according datasheet in page 15 */
-    long X1 = (UT - AC6) * AC5 / 32768;
+    long X1 = (UT - AC6) * (AC5 )/ 32768;
     long X2 = MC * 2048 / (X1 + MD);
     long B5 = X1 + X2;
     long T = ((B5 + 8) / 16); /* Receive compersanted temperature in long value with resolution 0.1 oC (e.g. Value of T 230 is means 23.0 oC) */
@@ -125,7 +115,7 @@ data_from_bmp180 get_bmp180_sensor_data(uint8_t oss_mode)
 
     uint8_t buf_raw_pressure[3] = {0}; /* Buffer for receiving uncompersanted pressure */
 
-    i2c_write_blocking(i2c0, ADDRESS_BMP180, &GET_DATA_RAW, 1, false); /* Send request to receiving uncompersanted atmosphere pressure */
+   // i2c_write_blocking(i2c0, ADDRESS_BMP180, &GET_DATA_RAW, 1, false); /* Send request to receiving uncompersanted atmosphere pressure */
     i2c_read_blocking(i2c0, ADDRESS_BMP180, buf_raw_pressure, 3, false); /* Receive uncompersanted atmosphere pressure from BMP180 barometer sensor */
 
     int32_t UP = (((buf_raw_pressure[0] << 16) + (buf_raw_pressure[1] << 8) + buf_raw_pressure[2]) >> (8 - oss_mode)); /* Construction uncompersanted pressure value, according datasheet of sensor BMP180 (See page 15) */
@@ -138,7 +128,7 @@ data_from_bmp180 get_bmp180_sensor_data(uint8_t oss_mode)
     X2 = AC2 * B6 / 2048;
     int32_t X3 = X1 + X2;
     int32_t B3 = (((AC1 * 4 + X3) << oss_mode) + 2) / 4;
-    X1 = AC3 * B6 / 8192;8
+    X1 = AC3 * B6 / 8192;
     X2 = (B1 * (B6 * B6 / 4096)) / 65536;
     X3 = ((X1 + X2) + 2) / 4;
     uint32_t B4 = (uint32_t)(AC4 * (X3 + 32768)) / 32768;
@@ -159,6 +149,26 @@ data_from_bmp180 get_bmp180_sensor_data(uint8_t oss_mode)
     return current_data;
 }
 int main(){
-i2c_init_bmp180();
-get_bmp180_sensor_data(0X74);
+    stdio_init_all();
+    uart1_init();
+    i2c_init_bmp180();
+    uart_puts(UART_ID1, "\n\nHello! is this thing on?\n");
+    uart_puts(UART_ID1," demands to be seen and heard!\n\r");
+    uart_puts(UART_ID1, "Hello, MPU6050! Reading barometer registers...\n");
+
+
+
+while(true){
+data_from_bmp180 data = get_bmp180_sensor_data(0XB4);
+ char *temp,*pressure;
+       sprintf(temp,"%s",data.air_temperature_in_celisus);
+      sprintf(pressure,"%s",data.atmospheric_pressure_in_Pa);
+          uart_puts(UART_ID1, "temp = ");
+          uart_puts(UART_ID1,temp);
+           uart_puts(UART_ID1,"\n\r");
+           uart_puts(UART_ID1, "pressure = ,");
+            uart_puts(UART_ID1,pressure);
+           uart_puts(UART_ID1,"\n\r");
+          sleep_ms(1000);
+}
 }
