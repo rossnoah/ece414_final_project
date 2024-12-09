@@ -100,6 +100,7 @@ int main()
             motor2.sendThrottle(0.0);
             motor3.sendThrottle(0.0);
             motor4.sendThrottle(0.0);
+            sleep_ms(250);
             // disarmed kinda (for safety after drone tried to get me)
         }
 
