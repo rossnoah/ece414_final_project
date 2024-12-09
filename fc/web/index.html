@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>HC-05 Logger</title>
+  </head>
+  <body>
+    <h1>HC-05 Bluetooth Logger</h1>
+    <button id="connectButton">Connect to HC-05</button>
+    <pre id="log"></pre>
+
+    <script>
+      let port;
+      let reader;
+
+      async function connectToHC05() {
+        const logElement = document.getElementById("log");
+
+        try {
+          // Request a port and open a connection
+          port = await navigator.serial.requestPort();
+          await port.open({ baudRate: 9600 });
+
+          log("Connected to HC-05");
+
+          // Create a reader to read data from the serial port
+          const textDecoder = new TextDecoderStream();
+          const readableStreamClosed = port.readable.pipeTo(
+            textDecoder.writable
+          );
+          reader = textDecoder.readable.getReader();
+
+          // Start reading data
+          while (true) {
+            const { value, done } = await reader.read();
+            if (done) {
+              break; // Exit the loop when the stream is closed
+            }
+            if (value) {
+              log(value);
+            }
+          }
+        } catch (err) {
+          log(`Error: ${err.message}`);
+        }
+      }
+
+      function log(message) {
+        const logElement = document.getElementById("log");
+        logElement.textContent += message + "\n";
+        console.log(message);
+      }
+
+      document
+        .getElementById("connectButton")
+        .addEventListener("click", connectToHC05);
+
+      // Handle disconnection
+      window.addEventListener("beforeunload", async () => {
+        if (reader) {
+          await reader.cancel();
+          reader.releaseLock();
+        }
+        if (port) {
+          await port.close();
+        }
+      });
+    </script>
+  </body>
+</html>

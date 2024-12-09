@@ -8,6 +8,9 @@
 #include "timer.h"
 #include "dshot_encoder.h"
 #include <math.h>
+#include "imu.h"
+#include "barometer.h"
+#include "hc05.h"
 
 #define CHANNEL_MIDDLE 995
 #define DEAD_ZONE 50
@@ -33,9 +36,18 @@ double normalize_input(int input)
 int main()
 {
     stdio_init_all();
+
+    hc05_init();
+
     init_crsf();
 
     sleep_ms(500); // wait for ESC to power on and stuff
+
+    imu_init();
+    imu_start_interrupts();
+
+    // barometer_init();
+    // barometer_start_interrupts();
 
     PIO pio = pio0;
 
@@ -100,7 +112,7 @@ int main()
             motor2.sendThrottle(0.0);
             motor3.sendThrottle(0.0);
             motor4.sendThrottle(0.0);
-            sleep_ms(250);
+            sleep_ms(1000);
             // disarmed kinda (for safety after drone tried to get me)
         }
 
@@ -141,6 +153,11 @@ int main()
         motor4.sendThrottle(motor4Output);
 
         printf("motor outputs: m1=%f, m2=%f, m3=%f, m4=%f\n", motor1Output, motor2Output, motor3Output, motor4Output);
+
+        imu_read();
+        barometer_read();
+        hc05_send_string("Hello HC-05!\r\n");
+        sleep_ms(10);
     }
 
     return 0;
